@@ -9,10 +9,11 @@ Module that provides methods for accessing Crossbar.io HTTP Bridge Services usin
 
 Fork of the original package by `Eric Chapman at The HQ`_, only supporting 
 Python 3+ versions using python-requests module. Which means you can pass params like proxies, auth, certificate verify etc. to the Client.
+Check python-requests for extra args you can use
 
 ## Revision History
   - v0.1.3:
-    - Switched to python-requests module to support more options passed to the client
+    - Switched to python-requests module to support more params passing to the client
   - v0.1.2:
     - Added "ClientCallRuntimeError" exception for general errors
   - v0.1.1:
