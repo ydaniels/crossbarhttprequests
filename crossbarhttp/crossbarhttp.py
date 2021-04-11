@@ -1,12 +1,12 @@
 import json
-import urllib2
-import urllib
 import hmac
 import hashlib
 import base64
 import datetime
 from random import randint
+from urllib.parse import urlencode
 
+import requests
 
 class ClientBaseException(Exception):
     """
@@ -56,13 +56,14 @@ class ClientCallRuntimeError(ClientBaseException):
 
 class Client(object):
 
-    def __init__(self, url, key=None, secret=None, verbose=False):
+    def __init__(self, url, key=None, secret=None, verbose=False, **kwargs):
         """
         Creates a client to connect to the HTTP bridge services
         :param url: The URL to connect to to access the Crossbar
         :param key: The key for the API calls
         :param secret: The secret for the API calls
         :param verbose: True if you want debug messages printed
+        :param kwargs: Extra kwargs passed to requests.request e.g proxies, auth, verify etc.
         :return: Nothing
         """
         assert url is not None
@@ -72,6 +73,7 @@ class Client(object):
         self.secret = secret
         self.verbose = verbose
         self.sequence = 1
+        self.kwargs = kwargs
 
     def publish(self, topic, *args, **kwargs):
         """
@@ -159,21 +161,14 @@ class Client(object):
         :return:
         """
         if self.verbose is True:
-            print "\ncrossbarhttp: Request: %s %s" % (method, url)
+            print ("\ncrossbarhttp: Request: %s %s" % (method, url))
 
-        if json_params is not None:
-            encoded_params = json.dumps(json_params)
-            headers = {'Content-Type': 'application/json'}
-        else:
-            encoded_params = None
-            headers = {}
+        if json_params is not None and self.verbose is True:
+            print ("crossbarhttp: Params: " + json.dumps(json_params))
 
-        if encoded_params is not None and self.verbose is True:
-            print "crossbarhttp: Params: " + encoded_params
-
-        if self.key is not None and self.secret is not None and encoded_params is not None:
-            signature, nonce, timestamp = self._compute_signature(encoded_params)
-            params = urllib.urlencode({
+        if self.key is not None and self.secret is not None and json_params is not None:
+            signature, nonce, timestamp = self._compute_signature(json.dumps(json_params))
+            params = urlencode({
                 "timestamp": timestamp,
                 "seq": str(self.sequence),
                 "nonce": nonce,
@@ -181,27 +176,24 @@ class Client(object):
                 "key": self.key
             })
             if self.verbose is True:
-                print "crossbarhttp: Signature Params: " + params
+                print ("crossbarhttp: Signature Params: " + params)
             url += "?" + params
 
         # TODO: I can't figure out what this is.  Guessing it is a number you increment on every call
         self.sequence += 1
 
         try:
-            request = urllib2.Request(url, encoded_params, headers)
-            request.get_method = lambda: method
-            response = urllib2.urlopen(request).read()
-            if self.verbose is True:
-                print "crossbarhttp: Response: " + response
-
-            return json.loads(response)
-
-        except urllib2.HTTPError, e:
-            if e.code == 400:
-                raise ClientMissingParams(str(e))
-            elif e.code == 401:
-                raise ClientSignatureError(str(e))
+            response = requests.request(method, url=url, json=json_params, **self.kwargs)
+            if response.status_code == 200:
+                data = response.json()
+                if self.verbose is True:
+                    print("crossbarhttp: Response: " + str(data))
+                return data
+            elif response.status_code == 400:
+                raise ClientMissingParams(str(response.text))
+            elif response.status_code == 401:
+                raise ClientSignatureError(str(response.text))
             else:
-                raise ClientBadUrl(str(e))
-        except urllib2.URLError, e:
+                raise ClientBadUrl(str(response.text))
+        except requests.exceptions.RequestException as e:
             raise ClientBadHost(str(e))
