@@ -1,15 +1,18 @@
 # Crossbar HTTP
 
-[![PyPi version](https://img.shields.io/pypi/v/crossbarhttp.svg)](https://pypi.python.org/pypi/crossbarhttp)
-[![PyPi downloads](https://img.shields.io/pypi/dm/crossbarhttp.svg)](https://pypi.python.org/pypi/crossbarhttp)
-[![Circle CI](https://img.shields.io/circleci/token/7e41f7fa67cadba9f0a3465cfb04fdeee4c31357/project/thehq/python-crossbarhttp/master.svg)](https://circleci.com/gh/thehq/python-crossbarhttp/tree/master)
+[![PyPi version](https://img.shields.io/pypi/v/crossbarhttprequests.svg)](https://pypi.python.org/pypi/crossbarhttprequests)
+[![PyPi downloads](https://img.shields.io/pypi/dm/crossbarhttprequests.svg)](https://pypi.python.org/pypi/crossbarhttprequests)
 [![Codecov](https://img.shields.io/codecov/c/github/thehq/python-crossbarhttp/master.svg)](https://codecov.io/github/thehq/python-crossbarhttp)
-[![PyPi license](https://img.shields.io/pypi/l/crossbarhttp.svg)](https://pypi.python.org/pypi/crossbarhttp)
+[![PyPi license](https://img.shields.io/pypi/l/crossbarhttprequests.svg)](https://pypi.python.org/pypi/crossbarhttprequests)
 
-Module that provides methods for accessing Crossbar.io HTTP Bridge Services
+Module that provides methods for accessing Crossbar.io HTTP Bridge Services using python-requests
+
+Fork of the original package by `Eric Chapman at The HQ`_, only supporting 
+Python 3+ versions using python-requests module. Which means you can pass params like proxies, auth, certificate verify etc. to the Client.
 
 ## Revision History
-
+  - v0.1.3:
+    - Switched to python-requests module to support more options passed to the client
   - v0.1.2:
     - Added "ClientCallRuntimeError" exception for general errors
   - v0.1.1:
@@ -20,14 +23,14 @@ Module that provides methods for accessing Crossbar.io HTTP Bridge Services
 
 ## Installation
 
-    pip install crossbarhttp
+    pip install crossbarhttprequests
 
 ## Usage
 
 ### Call
 To call a Crossbar HTTP bridge, do the following
 
-    client = Client("http://127.0.0.1/call")
+    client = Client("https://127.0.0.1/call", verify=False) # Extra params goes to requests.request
     result = client.call("com.example.add", 2, 3, offset=10)
     
 This will call the following method
@@ -43,7 +46,7 @@ This will call the following method
 ### Publish
 To publish to a Crossbar HTTP bridge, do the following
 
-    client = Client("http://127.0.0.1/publish")
+    client = Client("http://127.0.0.1/publish", headers={'X-Custom-Headers': 'X-Value'}) # Extra params goes to requests.request
     result = client.publish("com.example.event", event="new event")
     
 The receiving subscription would look like
