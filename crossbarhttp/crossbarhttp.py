@@ -7,6 +7,7 @@ from random import randint
 from urllib.parse import urlencode
 
 import requests
+from requests_futures.sessions import FuturesSession
 
 class ClientBaseException(Exception):
     """
@@ -56,10 +57,11 @@ class ClientCallRuntimeError(ClientBaseException):
 
 class Client(object):
 
-    def __init__(self, url, key=None, secret=None, verbose=False, **kwargs):
+    def __init__(self, url, key=None, secret=None, verbose=False, do_async=False, max_workers=8, session=None, response_hook=None, **kwargs):
         """
         Creates a client to connect to the HTTP bridge services
         :param url: The URL to connect to to access the Crossbar
+        :param do_async: Run request in async mode
         :param key: The key for the API calls
         :param secret: The secret for the API calls
         :param verbose: True if you want debug messages printed
@@ -69,11 +71,21 @@ class Client(object):
         assert url is not None
 
         self.url = url
+        self.do_async = do_async
         self.key = key
         self.secret = secret
         self.verbose = verbose
         self.sequence = 1
         self.kwargs = kwargs
+        if self.do_async is True:
+            self.session = FuturesSession(max_workers=max_workers, session=session)
+            self.session.hooks['response'] = response_hook
+
+    def get_url(self, ext_url):
+        url = self.url
+        if ext_url not in self.url:
+            url = '{}{}'.format(self.url, ext_url)
+        return url
 
     def publish(self, topic, *args, **kwargs):
         """
@@ -84,14 +96,16 @@ class Client(object):
         :return: The ID of the publish
         """
         assert topic is not None
-
+        ext_url = kwargs.pop('transport_path', 'publish')
+        response_hook = kwargs.pop('response_hook', None)
         params = {
             "topic": topic,
             "args": args,
             "kwargs": kwargs
         }
-
-        response = self._make_api_call("POST", self.url, json_params=params)
+        response = self._make_api_call("POST", self.get_url(ext_url), json_params=params, response_hook=response_hook)
+        if self.do_async is True:
+            return response
         return response["id"]
 
     def call(self, procedure, *args, **kwargs):
@@ -103,15 +117,17 @@ class Client(object):
         :return: The response from calling the procedure
         """
         assert procedure is not None
-
+        ext_url = kwargs.pop('transport_path', 'call')
+        response_hook = kwargs.pop('response_hook', None)
         params = {
             "procedure": procedure,
             "args": args,
             "kwargs": kwargs
         }
 
-        response = self._make_api_call("POST", self.url, json_params=params)
-
+        response = self._make_api_call("POST", self.get_url(ext_url), json_params=params, response_hook=response_hook)
+        if self.do_async is True:
+            return response
         value = None
         if "args" in response and len(response["args"]) > 0:
             value = response["args"][0]
@@ -152,7 +168,7 @@ class Client(object):
 
         return signature, nonce, timestamp
 
-    def _make_api_call(self, method, url, json_params=None):
+    def _make_api_call(self, method, url, json_params=None, response_hook=None):
         """
         Performs the REST API Call
         :param method: HTTP Method
@@ -183,6 +199,8 @@ class Client(object):
         self.sequence += 1
 
         try:
+            if self.do_async is True:
+                return self.session.request(method, url=url, json=json_params, hooks={'response': response_hook}, **self.kwargs)
             response = requests.request(method, url=url, json=json_params, **self.kwargs)
             if response.status_code == 200:
                 data = response.json()
